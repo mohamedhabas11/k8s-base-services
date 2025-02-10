@@ -1,0 +1,6 @@
+---
+apiVersion: v2
+name: generic
+description: A generic chart to deploy raw manifests.
+version: 0.1.0
+appVersion: "1.0"

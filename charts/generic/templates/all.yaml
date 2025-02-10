@@ -1,0 +1,6 @@
+{{- if .Values.resources }}
+{{- range .Values.resources }}
+---
+{{ toYaml . }}
+{{- end }}
+{{- end }}
