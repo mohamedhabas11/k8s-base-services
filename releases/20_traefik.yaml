@@ -1,0 +1,76 @@
+---
+repositories:
+  - name: traefik
+    url: https://helm.traefik.io/traefik
+
+releases:
+  - name: traefik
+    namespace: traefik
+    chart: traefik/traefik
+    version: "34.2.0"
+    wait: true
+    values:
+      - ../values/20_traefik.yaml
+      - extraObjects:
+        - apiVersion: v1
+          kind: Secret
+          metadata:
+            name: {{ env "TRAEFIK_LETSENCRYPT_SECRET_NAME" | default "cloudflare-api-token" }}
+            namespace: traefik
+          type: Opaque
+          stringData:
+            api-token: {{ env "TRAEFIK_LETSENCRYPT_RESOLVER_TOKEN" | required "TRAEFIK_LETSENCRYPT_RESOLVER_TOKEN environment variable required" }}
+        - apiVersion: v1
+          kind: Secret
+          metadata:
+            name: traefik-dashboard-auth-secret
+          type: kubernetes.io/basic-auth
+          stringData:
+            username: {{ env "TRAEFIK_DASHBOARD_USERNAME" | default "admin" }}
+            password: {{ env "TRAEFIK_DASHBOARD_PASSWORD" | default "changeme" }}
+        - apiVersion: traefik.io/v1alpha1
+          kind: Middleware
+          metadata:
+            name: traefik-dashboard-auth
+          spec:
+            basicAuth:
+              secret: traefik-dashboard-auth-secret
+      - env:
+          - name: {{ env "TRAEFIK_LETSENCRYPT_ENV_VAR" | default "CF_DNS_API_TOKEN" }}
+            valueFrom:
+              secretKeyRef:
+                name: {{ env "TRAEFIK_LETSENCRYPT_SECRET_NAME" | default "cloudflare-api-token" }}
+                key: api-token
+      - certificatesResolvers:
+          {{ env "TRAEFIK_CERT_RESOLVER" | default "cloudflare" }}:
+            acme:
+              email: {{ env "TRAEFIK_LETSENCRYPT_DOMAIN_EMAIL" | default "admin@example.com" }}
+              storage: /data/acme.json
+              caServer: "https://acme-v02.api.letsencrypt.org/directory"
+              dnsChallenge:
+                # Use the same resolver name as selected by the environment variable.
+                provider: {{ env "TRAEFIK_CERT_RESOLVER" | default "cloudflare" }}
+                resolvers:
+                  - {{ env "TRAEFIK_CERT_DNS_RESOLVER_MAIN" | default "1.1.1.1:53" }}
+                  - {{ env "TRAEFIK_CERT_DNS_RESOLVER_BACKUP" | default "8.8.8.8:53" }}
+      - ports:
+          web:
+            redirections:
+              entryPoint:
+                to: websecure
+                scheme: https
+                permanent: true
+          websecure:
+            tls:
+              enabled: true
+              certResolver: {{ env "TRAEFIK_CERT_RESOLVER" | default "cloudflare" }}
+      - ingressRoute:
+          dashboard:
+            enabled: true
+            matchRule: Host(`traefik.{{ env "TRAEFIK_LETSENCRYPT_DOMAIN" | required "TRAEFIK_LETSENCRYPT_DOMAIN is required" }}`)
+            entryPoints:
+              - websecure
+            middlewares:
+              - name: traefik-dashboard-auth
+
+

@@ -1,0 +1,5 @@
+---
+helmfiles:
+  - path: releases/20_traefik.yaml
+  # - path: releases/25_prometheus_community.yaml
+  # - path: releases/50_postgresql.yaml
